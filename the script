@@ -10,26 +10,9 @@ local LocalPlayer = player
 local playerGui  = player:WaitForChild("PlayerGui")
 local PlayerGui  = playerGui
 
--- ── FIXED: Robust HTTP detection (type() instead of typeof(), getgenv() fallback) ──
-local httpRequest
-do
-    if syn and type(syn) == "table" and type(syn.request) == "function" then
-        httpRequest = syn.request
-    elseif http and type(http) == "table" and type(http.request) == "function" then
-        httpRequest = http.request
-    elseif type(request) == "function" then
-        httpRequest = request
-    elseif getgenv and type(getgenv().request) == "function" then
-        httpRequest = getgenv().request
-    end
-end
-
--- Debug print: feel free to remove after confirming it works
-if httpRequest then
-    print("[StonksHub] HTTP detected OK: " .. tostring(httpRequest))
-else
-    warn("[StonksHub] HTTP NOT detected — GP Creator will not work!")
-end
+local httpRequest = (syn and syn.request)
+    or (http and http.request)
+    or (typeof(request) == "function" and request)
 
 local CONFIG_FILE = "gpcreator_config.json"
 local Config = { apiKey = "", universeId = "" }
