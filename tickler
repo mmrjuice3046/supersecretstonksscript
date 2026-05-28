@@ -1,6 +1,6 @@
 -- StonksHub Combined v1.0
 -- Auto Seller + Auto Pumper + Dual Pump + Robux Seller + GP Creator + Auto Collect
-
+print("loaded")
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService  = game:GetService("UserInputService")
