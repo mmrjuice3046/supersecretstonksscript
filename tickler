@@ -1,6 +1,6 @@
 -- StonksHub Combined v1.0
 -- Auto Seller + Auto Pumper + Dual Pump + Robux Seller + GP Creator + Auto Collect
-print("loaded")
+
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService  = game:GetService("UserInputService")
@@ -1862,7 +1862,8 @@ task.spawn(function()
 
     local oldNamecall
     local hookOk, hookErr = pcall(function()
-        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        -- newcclosure is required by some executors (e.g. Delta) for hookmetamethod callbacks
+        local callback = function(self, ...)
             local args = {...}
             local ok2, method = pcall(getnamecallmethod)
             if not ok2 then method = nil end
@@ -1904,7 +1905,11 @@ task.spawn(function()
                 end
             end
             return oldNamecall(self, ...)
-        end)
+        end
+        if newcclosure and type(newcclosure) == "function" then
+            callback = newcclosure(callback)
+        end
+        oldNamecall = hookmetamethod(game, "__namecall", callback)
     end)
 
     if not hookOk then
