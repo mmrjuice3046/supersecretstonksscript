@@ -15,14 +15,23 @@ local playerGui   = player:WaitForChild("PlayerGui")
 -- ── HTTP detection ──────────────────────────────────────────────────────────
 local httpRequest
 do
-    if syn and type(syn) == "table" and type(syn.request) == "function" then
-        httpRequest = syn.request
-    elseif http and type(http) == "table" and type(http.request) == "function" then
-        httpRequest = http.request
-    elseif type(request) == "function" then
-        httpRequest = request
-    elseif getgenv and type(getgenv().request) == "function" then
-        httpRequest = getgenv().request
+    -- Use rawget/pcall so accessing undefined globals never crashes
+    local function safeGet(name)
+        local ok, val = pcall(function() return getgenv and getgenv()[name] end)
+        return ok and val or nil
+    end
+    local syn_     = safeGet("syn")
+    local http_    = safeGet("http")
+    local request_ = safeGet("request")
+    if type(syn_) == "table" and type(syn_.request) == "function" then
+        httpRequest = syn_.request
+    elseif type(http_) == "table" and type(http_.request) == "function" then
+        httpRequest = http_.request
+    elseif type(request_) == "function" then
+        httpRequest = request_
+    else
+        local genv_req = safeGet("request")
+        if type(genv_req) == "function" then httpRequest = genv_req end
     end
 end
 
@@ -1270,11 +1279,17 @@ local multiExecutionThread   = nil
 local multiBuyCount1         = 0
 local multiBuyCount2         = 0
 
-local multiRemote = ReplicatedStorage
-    :WaitForChild("Packages"):WaitForChild("_Index")
-    :WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit")
-    :WaitForChild("Services"):WaitForChild("Stocks")
-    :WaitForChild("RF"):WaitForChild("MarketBuyPoints")
+local multiRemote = nil
+task.spawn(function()
+    local ok, result = pcall(function()
+        return ReplicatedStorage
+            :WaitForChild("Packages", 30):WaitForChild("_Index", 30)
+            :WaitForChild("sleitnick_knit@1.7.0", 30):WaitForChild("knit", 30)
+            :WaitForChild("Services", 30):WaitForChild("Stocks", 30)
+            :WaitForChild("RF", 30):WaitForChild("MarketBuyPoints", 30)
+    end)
+    if ok then multiRemote = result end
+end)
 
 multi1StockIdInput.FocusLost:Connect(function()
     local v = tonumber(multi1StockIdInput.Text)
@@ -1316,7 +1331,7 @@ local function multiStartLoop()
     if multiExecutionThread then return end
     multiExecutionThread = task.spawn(function()
         while multiRunning do
-            if multi1StockId then
+            if multi1StockId and multiRemote then
                 task.spawn(function()
                     pcall(function() multiRemote:InvokeServer(multi1StockId, multi1Quantity) end)
                 end)
@@ -1326,7 +1341,7 @@ local function multiStartLoop()
             end
             task.wait(multiExecutionInterval)
             if not multiRunning then break end
-            if multi2StockId then
+            if multi2StockId and multiRemote then
                 task.spawn(function()
                     pcall(function() multiRemote:InvokeServer(multi2StockId, multi2Quantity) end)
                 end)
@@ -1819,43 +1834,85 @@ end)
 -- ═══════════════════════════════════════════════════════════════════
 -- OpenSocket hook: auto-detect stock IDs
 -- ═══════════════════════════════════════════════════════════════════
-local OpenSocket = ReplicatedStorage
-    :WaitForChild("Packages"):WaitForChild("_Index")
-    :WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit")
-    :WaitForChild("Services"):WaitForChild("Stocks")
-    :WaitForChild("RF"):WaitForChild("OpenSocket")
+task.spawn(function()
+    -- Safely wait for OpenSocket remote
+    local OpenSocket
+    local ok = pcall(function()
+        OpenSocket = ReplicatedStorage
+            :WaitForChild("Packages", 30):WaitForChild("_Index", 30)
+            :WaitForChild("sleitnick_knit@1.7.0", 30):WaitForChild("knit", 30)
+            :WaitForChild("Services", 30):WaitForChild("Stocks", 30)
+            :WaitForChild("RF", 30):WaitForChild("OpenSocket", 30)
+    end)
 
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    local args   = {...}
-    local method = getnamecallmethod()
-    if self == OpenSocket and method == "InvokeServer" then
-        local id = args[1]
-        if id then
-            local numId = tonumber(id)
-            -- Update seller
-            sellerStockId = numId; sellerStockIdInput.Text = tostring(numId)
-            sellerStatusLabel.TextColor3=C.teal; sellerStatusLabel.Text="Stock found!\nStock: "..numId
-            -- Update buyer
-            buyerStockId = numId; buyerStockIdInput.Text = tostring(numId)
-            buyerStatusLabel.TextColor3=C.teal; buyerStatusLabel.Text="Stock found!\nStock: "..numId
-            -- Update robux
-            robuxStockIdInput.Text = tostring(id)
-            robuxStatusLabel.TextColor3=C.teal; robuxStatusLabel.Text="Stock found!\nStock: "..id
-            -- Update dual pump (respect locks)
-            if not multi1IsLocked() then
-                multi1StockId = numId; multi1StockIdInput.Text = tostring(numId)
-            end
-            if not multi2IsLocked() then
-                multi2StockId = numId; multi2StockIdInput.Text = tostring(numId)
-            end
-            if multiPage.Visible then
-                multiStatusLabel.TextColor3=C.teal
-                multiStatusLabel.Text="Stock detected!\nS1: "..(tostring(multi1StockId or "—")).."  ·  S2: "..(tostring(multi2StockId or "—"))
-            end
-        end
+    if not ok or not OpenSocket then
+        warn("[StonksHub] OpenSocket remote not found — auto stock detection disabled.")
+        return
     end
-    return oldNamecall(self, ...)
+
+    -- hookmetamethod is executor-only; guard against it being nil
+    if not hookmetamethod or type(hookmetamethod) ~= "function" then
+        warn("[StonksHub] hookmetamethod not available in this executor — auto stock detection disabled.")
+        return
+    end
+    if not getnamecallmethod or type(getnamecallmethod) ~= "function" then
+        warn("[StonksHub] getnamecallmethod not available — auto stock detection disabled.")
+        return
+    end
+
+    local oldNamecall
+    local hookOk, hookErr = pcall(function()
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local args = {...}
+            local ok2, method = pcall(getnamecallmethod)
+            if not ok2 then method = nil end
+            if self == OpenSocket and method == "InvokeServer" then
+                local id = args[1]
+                if id then
+                    local numId = tonumber(id)
+                    if numId then
+                        pcall(function()
+                            -- Update seller
+                            sellerStockId = numId
+                            sellerStockIdInput.Text = tostring(numId)
+                            sellerStatusLabel.TextColor3 = C.teal
+                            sellerStatusLabel.Text = "Stock found!\nStock: "..numId
+                            -- Update buyer
+                            buyerStockId = numId
+                            buyerStockIdInput.Text = tostring(numId)
+                            buyerStatusLabel.TextColor3 = C.teal
+                            buyerStatusLabel.Text = "Stock found!\nStock: "..numId
+                            -- Update robux
+                            robuxStockIdInput.Text = tostring(numId)
+                            robuxStatusLabel.TextColor3 = C.teal
+                            robuxStatusLabel.Text = "Stock found!\nStock: "..numId
+                            -- Update dual pump (respect locks)
+                            if not multi1IsLocked() then
+                                multi1StockId = numId
+                                multi1StockIdInput.Text = tostring(numId)
+                            end
+                            if not multi2IsLocked() then
+                                multi2StockId = numId
+                                multi2StockIdInput.Text = tostring(numId)
+                            end
+                            if multiPage.Visible then
+                                multiStatusLabel.TextColor3 = C.teal
+                                multiStatusLabel.Text = "Stock detected!\nS1: "..(tostring(multi1StockId or "—")).."  ·  S2: "..(tostring(multi2StockId or "—"))
+                            end
+                        end)
+                    end
+                end
+            end
+            return oldNamecall(self, ...)
+        end)
+    end)
+
+    if not hookOk then
+        warn("[StonksHub] hookmetamethod failed: "..tostring(hookErr).." — auto stock detection disabled.")
+        return
+    end
+
+    print("[StonksHub] Stock auto-detection hooked successfully.")
 end)
 
 print("[StonksHub] Combined script loaded successfully!")
