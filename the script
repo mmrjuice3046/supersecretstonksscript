@@ -2427,51 +2427,68 @@ gpCollectNav.btn.MouseButton1Click:Connect(function() switchTab("gp_collect") en
 gpFindGameNav.btn.MouseButton1Click:Connect(function() switchTab("gp_findgame") end)
 settingsNav.btn.MouseButton1Click:Connect(function() switchTab("settings") end)
 
--- Knit Service Hooks / Namecall Hooks
-local OpenSocket = ReplicatedStorage
-    :WaitForChild("Packages"):WaitForChild("_Index")
-    :WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit")
-    :WaitForChild("Services"):WaitForChild("Stocks")
-    :WaitForChild("RF"):WaitForChild("OpenSocket")
+-- ── KNIT HOOK (safe — pcall-wrapped) ─────────────────────────────────────────
+-- hookmetamethod only exists in certain exploit executors.
+-- We wrap everything so the rest of the script still runs if it's missing.
+local function updateAllStockInputs(numId)
+    sellerStockId = numId
+    sellerStockIdInput.Text = tostring(numId)
+    sellerStatusLabel.TextColor3 = C.teal
+    sellerStatusLabel.Text = "Stock found!\nStock: " .. numId
 
-local oldNamecall
-oldNamecall = hookmetamethod(game,"__namecall",function(self,...)
-    local args={...}; local method=getnamecallmethod()
-    if self==OpenSocket and method=="InvokeServer" then
-        local id=args[1]
-        if id then
-            local numId = tonumber(id)
-            sellerStockId=numId; sellerStockIdInput.Text=tostring(numId)
-            sellerStatusLabel.TextColor3=C.teal
-            sellerStatusLabel.Text="Stock found!\nStock: "..numId
+    buyerStockId = numId
+    buyerStockIdInput.Text = tostring(numId)
+    buyerStatusLabel.TextColor3 = C.teal
+    buyerStatusLabel.Text = "Stock found!\nStock: " .. numId
 
-            buyerStockId=numId; buyerStockIdInput.Text=tostring(numId)
-            buyerStatusLabel.TextColor3=C.teal
-            buyerStatusLabel.Text="Stock found!\nStock: "..numId
+    robuxStockIdInput.Text = tostring(numId)
+    robuxStatusLabel.TextColor3 = C.teal
+    robuxStatusLabel.Text = "Stock found!\nStock: " .. numId
 
-            robuxStockIdInput.Text=tostring(id)
-            robuxStatusLabel.TextColor3=C.teal
-            robuxStatusLabel.Text="Stock found!\nStock: "..id
+    if not multi1IsLocked() then
+        multi1StockId = numId
+        multi1StockIdInput.Text = tostring(numId)
+    end
+    if not multi2IsLocked() then
+        multi2StockId = numId
+        multi2StockIdInput.Text = tostring(numId)
+    end
 
-            if not multi1IsLocked() then
-                multi1StockId = numId
-                multi1StockIdInput.Text = tostring(numId)
-            end
-            if not multi2IsLocked() then
-                multi2StockId = numId
-                multi2StockIdInput.Text = tostring(numId)
-            end
+    if multiPage.Visible then
+        multiStatusLabel.TextColor3 = C.teal
+        multiStatusLabel.Text =
+            "Stock detected!\n" ..
+            "S1: " .. (tostring(multi1StockId or "—")) .. "  ·  S2: " .. (tostring(multi2StockId or "—"))
+    end
+end
 
-            if multiPage.Visible then
-                multiStatusLabel.TextColor3 = C.teal
-                multiStatusLabel.Text =
-                    "Stock detected!\n"..
-                    "S1: "..(tostring(multi1StockId or "—")).."  ·  S2: "..(tostring(multi2StockId or "—"))
+local hookOk = pcall(function()
+    local OpenSocket = ReplicatedStorage
+        :WaitForChild("Packages"):WaitForChild("_Index")
+        :WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit")
+        :WaitForChild("Services"):WaitForChild("Stocks")
+        :WaitForChild("RF"):WaitForChild("OpenSocket")
+
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local args = { ... }
+        local method = getnamecallmethod()
+        if self == OpenSocket and method == "InvokeServer" then
+            local id = args[1]
+            if id then
+                local numId = tonumber(id)
+                updateAllStockInputs(numId)
             end
         end
-    end
-    return oldNamecall(self,...)
+        return oldNamecall(self, ...)
+    end)
 end)
+
+if not hookOk then
+    -- hookmetamethod not available in this executor — stock auto-detect disabled.
+    -- Users can still type stock IDs manually in each tab.
+    warn("[StonksHub] hookmetamethod unavailable — auto stock detect disabled. Enter IDs manually.")
+end
 
 -- Entrance Animations
 local animCards = {CrtCard, ResCard, ADCard, AFGCard, AFGResultsCard, CfgCard, ProfCard, LogCard}
