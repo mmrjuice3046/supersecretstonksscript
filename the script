@@ -2462,52 +2462,73 @@ local function updateAllStockInputs(numId)
     end
 end
 
-local hookOk = pcall(function()
-    local OpenSocket = ReplicatedStorage
-        :WaitForChild("Packages"):WaitForChild("_Index")
-        :WaitForChild("sleitnick_knit@1.7.0"):WaitForChild("knit")
-        :WaitForChild("Services"):WaitForChild("Stocks")
-        :WaitForChild("RF"):WaitForChild("OpenSocket")
+-- ── SAFE KNIT HOOK FOR DELTA / LOW-LEVEL EXECUTORS ─────────────────────────────
+warn("[StonksHub] Trying to apply stock auto-detect...")
 
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local args = { ... }
-        local method = getnamecallmethod()
-        if self == OpenSocket and method == "InvokeServer" then
-            local id = args[1]
-            if id then
-                local numId = tonumber(id)
-                updateAllStockInputs(numId)
-            end
-        end
-        return oldNamecall(self, ...)
-    end)
+local OpenSocket = nil
+pcall(function()
+    OpenSocket = ReplicatedStorage
+        :WaitForChild("Packages", 5)
+        :WaitForChild("_Index", 5)
+        :WaitForChild("sleitnick_knit@1.7.0", 5)
+        :WaitForChild("knit", 5)
+        :WaitForChild("Services", 5)
+        :WaitForChild("Stocks", 5)
+        :WaitForChild("RF", 5)
+        :WaitForChild("OpenSocket", 5)
 end)
 
-if not hookOk then
-    -- hookmetamethod not available in this executor — stock auto-detect disabled.
-    -- Users can still type stock IDs manually in each tab.
-    warn("[StonksHub] hookmetamethod unavailable — auto stock detect disabled. Enter IDs manually.")
-end
-
--- Entrance Animations
-local animCards = {CrtCard, ResCard, ADCard, AFGCard, AFGResultsCard, CfgCard, ProfCard, LogCard}
-for i, card in ipairs(animCards) do
-    local op = card.Position
-    card.BackgroundTransparency = 1
-    card.Position = UDim2.new(op.X.Scale, op.X.Offset, op.Y.Scale, op.Y.Offset+20)
-    task.delay(0.35+i*0.07, function()
-        tween(card,{BackgroundTransparency=0,Position=op},0.42,Enum.EasingStyle.Quint)
+if OpenSocket and hookmetamethod then
+    local success, err = pcall(function()
+        local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if self == OpenSocket and method == "InvokeServer" then
+                local args = {...}
+                local id = args[1]
+                if id then
+                    local numId = tonumber(id)
+                    if numId then
+                        -- Auto fill stock IDs
+                        pcall(function()
+                            sellerStockId = numId
+                            if sellerStockIdInput then sellerStockIdInput.Text = tostring(numId) end
+                            sellerStatusLabel.TextColor3 = C.teal
+                            sellerStatusLabel.Text = "Stock found!\nStock: " .. numId
+                        end)
+                        pcall(function()
+                            buyerStockId = numId
+                            if buyerStockIdInput then buyerStockIdInput.Text = tostring(numId) end
+                            buyerStatusLabel.TextColor3 = C.teal
+                            buyerStatusLabel.Text = "Stock found!\nStock: " .. numId
+                        end)
+                        pcall(function()
+                            if robuxStockIdInput then robuxStockIdInput.Text = tostring(numId) end
+                            robuxStatusLabel.TextColor3 = C.teal
+                            robuxStatusLabel.Text = "Stock found!\nStock: " .. numId
+                        end)
+                        pcall(function()
+                            if multi1StockIdInput and not multi1IsLocked() then
+                                multi1StockId = numId
+                                multi1StockIdInput.Text = tostring(numId)
+                            end
+                            if multi2StockIdInput and not multi2IsLocked() then
+                                multi2StockId = numId
+                                multi2StockIdInput.Text = tostring(numId)
+                            end
+                        end)
+                    end
+                end
+            end
+            return oldNamecall(self, ...)
+        end)
     end)
-end
-for i, card in ipairs(statCards) do
-    local op = card.Position
-    card.BackgroundTransparency = 1
-    card.Position = UDim2.new(op.X.Scale, op.X.Offset, op.Y.Scale, op.Y.Offset+14)
-    task.delay(0.18+i*0.06, function()
-        tween(card,{BackgroundTransparency=0,Position=op},0.38,Enum.EasingStyle.Quint)
-    end)
-end
 
-task.delay(0.5, loadOverview)
-print("[StonksHub] Fully Loaded  |  All features combined successfully!")
+    if success then
+        print("✅ Auto stock detection enabled")
+    else
+        warn("⚠️ hookmetamethod failed: " .. tostring(err))
+    end
+else
+    warn("⚠️ hookmetamethod not supported by this executor (Delta).")
+    warn("You can still manually enter Stock IDs in each tab.")
+end
