@@ -1455,6 +1455,8 @@ robuxSellButton.MouseButton1Click:Connect(function()
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
+do -- GP Creator + Auto Collect + Config scope (reduces top-level locals)
+
 -- PAGE: GP CREATOR
 -- ═══════════════════════════════════════════════════════════════════
 local gpCreatePage = make("Frame", {
@@ -1832,6 +1834,9 @@ saveBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
+
+end -- end GP Creator + Auto Collect + Config scope
+
 -- OpenSocket hook: auto-detect stock IDs
 -- ═══════════════════════════════════════════════════════════════════
 task.spawn(function()
