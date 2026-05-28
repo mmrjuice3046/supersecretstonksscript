@@ -1285,155 +1285,150 @@ end)
 -- ═══════════════════════════════════════════════════════════════════
 -- PAGE: AUTO FIND GAME
 -- ═══════════════════════════════════════════════════════════════════
-local gpFindPage = make("Frame", {Size=UDim2.new(1,0,0,0), BackgroundTransparency=1, Visible=false, AutomaticSize=Enum.AutomaticSize.Y}, mainArea)
-pages["gp_findgame"] = gpFindPage; vlist(gpFindPage, 14); pad(gpFindPage, 14, 16, 14, 16)
+local gpFindGamePage = make("Frame", {Size=UDim2.new(1,0,0,0), BackgroundTransparency=1, Visible=false, AutomaticSize=Enum.AutomaticSize.Y}, mainArea)
+pages["gp_findgame"] = gpFindGamePage; vlist(gpFindGamePage, 14); pad(gpFindGamePage, 14, 16, 14, 16)
 
-local fgHdr = make("Frame", {Size=UDim2.new(1,0,0,52), BackgroundTransparency=1}, gpFindPage)
-lbl({Size=UDim2.new(1,0,0,26), Text="Auto Find Game", TextColor3=C.text, TextSize=18, Font=Enum.Font.GothamBold}, fgHdr)
-lbl({Size=UDim2.new(1,0,0,16), Position=UDim2.new(0,0,0,30), Text="Detect your active universe ID by scanning the game environment.", TextColor3=C.textDim, TextSize=12}, fgHdr)
+local afgHdr = make("Frame", {Size=UDim2.new(1,0,0,52), BackgroundTransparency=1}, gpFindGamePage)
+lbl({Size=UDim2.new(1,0,0,26), Text="Auto Find Game", TextColor3=C.text, TextSize=18, Font=Enum.Font.GothamBold}, afgHdr)
+lbl({Size=UDim2.new(1,0,0,16), Position=UDim2.new(0,0,0,30),
+    Text="Search Roblox for games with 0 players & 0 visits. Click a result to copy the Place ID.",
+    TextColor3=C.textDim, TextSize=11}, afgHdr)
 
-local fgCard = make("Frame", {Size=UDim2.new(1,0,0,160), BackgroundColor3=C.card, BorderSizePixel=0}, gpFindPage)
-corner(fgCard, 11); mkStroke(fgCard, C.border, 1)
-lbl({Size=UDim2.new(1,-28,0,13), Position=UDim2.new(0,14,0,14), Text="DETECTED UNIVERSE", TextColor3=C.textDim, TextSize=9, Font=Enum.Font.GothamBold}, fgCard)
+-- Controls card
+local AFGCard = make("Frame", {Size=UDim2.new(1,0,0,82), BackgroundColor3=C.card, BorderSizePixel=0}, gpFindGamePage)
+corner(AFGCard, 11); mkStroke(AFGCard, C.border, 1)
+lbl({Size=UDim2.new(1,-28,0,13), Position=UDim2.new(0,14,0,12), Text="SEARCH OPTIONS", TextColor3=C.textDim, TextSize=9, Font=Enum.Font.GothamBold}, AFGCard)
 
-local fgUnivL = lbl({Size=UDim2.new(1,-28,0,28), Position=UDim2.new(0,14,0,30),
-    Text="—", TextColor3=C.text, TextSize=20, Font=Enum.Font.GothamBold}, fgCard)
-local fgSubL  = lbl({Size=UDim2.new(1,-28,0,14), Position=UDim2.new(0,14,0,60),
-    Text="Not detected yet", TextColor3=C.textDim, TextSize=11}, fgCard)
+local afgBtn = make("TextButton", {Size=UDim2.new(0.5,-18,0,36), Position=UDim2.new(0,14,0,32),
+    BackgroundColor3=C.tealStroke, Text="Search Now",
+    TextColor3=C.white, TextSize=13, Font=Enum.Font.GothamBold, BorderSizePixel=0, ZIndex=2}, AFGCard)
+corner(afgBtn, 9); mkStroke(afgBtn, C.tealDark, 1)
+afgBtn.MouseEnter:Connect(function() tween(afgBtn,{BackgroundColor3=Color3.fromRGB(17,185,170)},0.14) end)
+afgBtn.MouseLeave:Connect(function() tween(afgBtn,{BackgroundColor3=C.tealStroke},0.14) end)
+afgBtn.MouseButton1Down:Connect(function() tween(afgBtn,{Size=UDim2.new(0.5,-22,0,33),Position=UDim2.new(0,16,0,34)},0.08) end)
+afgBtn.MouseButton1Up:Connect(function()   tween(afgBtn,{Size=UDim2.new(0.5,-18,0,36),Position=UDim2.new(0,14,0,32)},0.12) end)
 
-local fgScanBtn = make("TextButton", {Size=UDim2.new(1,-28,0,40), Position=UDim2.new(0,14,0,82),
-    BackgroundColor3=C.purpleDark, TextColor3=C.purpleLight, Text="🔍  Scan Now",
-    TextSize=13, Font=Enum.Font.GothamBold, BorderSizePixel=0, ZIndex=2}, fgCard)
-corner(fgScanBtn, 9); mkStroke(fgScanBtn, C.purple, 1)
-fgScanBtn.MouseEnter:Connect(function() tween(fgScanBtn,{BackgroundColor3=C.purple},0.14) end)
-fgScanBtn.MouseLeave:Connect(function() tween(fgScanBtn,{BackgroundColor3=C.purpleDark},0.14) end)
+local afgStatusL = lbl({Size=UDim2.new(0.5,-14,0,16), Position=UDim2.new(0.5,4,0,54),
+    Text="Ready to search.", TextColor3=C.textDim, TextSize=11, Font=Enum.Font.GothamMedium,
+    TextXAlignment=Enum.TextXAlignment.Left}, AFGCard)
 
-local fgApplyBtn = make("TextButton", {Size=UDim2.new(1,-28,0,28), Position=UDim2.new(0,14,0,130),
-    BackgroundColor3=C.tealDark, TextColor3=C.teal, Text="Apply to Config",
-    TextSize=11, Font=Enum.Font.GothamBold, BorderSizePixel=0, ZIndex=2, Visible=false}, fgCard)
-corner(fgApplyBtn, 7); mkStroke(fgApplyBtn, C.tealStroke, 1)
-fgApplyBtn.MouseEnter:Connect(function() tween(fgApplyBtn,{BackgroundColor3=Color3.fromRGB(13,60,55)},0.14) end)
-fgApplyBtn.MouseLeave:Connect(function() tween(fgApplyBtn,{BackgroundColor3=C.tealDark},0.14) end)
+-- Results card
+local AFGResultsCard = make("Frame", {Size=UDim2.new(1,0,0,340), BackgroundColor3=C.card, BorderSizePixel=0}, gpFindGamePage)
+corner(AFGResultsCard, 11); mkStroke(AFGResultsCard, C.border, 1)
+lbl({Size=UDim2.new(1,-28,0,13), Position=UDim2.new(0,14,0,12),
+    Text="RESULTS — click any row to copy Place ID", TextColor3=C.textDim, TextSize=9, Font=Enum.Font.GothamBold}, AFGResultsCard)
 
-local fgLogCard = make("Frame", {Size=UDim2.new(1,0,0,200), BackgroundColor3=C.card, BorderSizePixel=0}, gpFindPage)
-corner(fgLogCard, 11); mkStroke(fgLogCard, C.border, 1)
-lbl({Size=UDim2.new(1,-28,0,13), Position=UDim2.new(0,14,0,14), Text="SCAN LOG", TextColor3=C.textDim, TextSize=9, Font=Enum.Font.GothamBold}, fgLogCard)
-local fgLogScroll = make("ScrollingFrame", {Size=UDim2.new(1,-24,1,-36), Position=UDim2.new(0,12,0,34),
-    BackgroundTransparency=1, ScrollBarThickness=2, ScrollBarImageColor3=Color3.fromRGB(55,55,80),
-    CanvasSize=UDim2.new(0,0,0,0), BorderSizePixel=0}, fgLogCard)
-vlist(fgLogScroll, 3)
-lbl({Size=UDim2.new(1,0,0,36), Text="Press Scan Now to begin.", TextColor3=C.textDim, TextSize=11, TextXAlignment=Enum.TextXAlignment.Center}, fgLogScroll)
+local AFGScroll = make("ScrollingFrame", {Size=UDim2.new(1,-24,1,-36), Position=UDim2.new(0,12,0,30),
+    BackgroundTransparency=1, ScrollBarThickness=3, ScrollBarImageColor3=Color3.fromRGB(55,55,80),
+    CanvasSize=UDim2.new(0,0,0,0), BorderSizePixel=0}, AFGResultsCard)
+vlist(AFGScroll, 5)
 
-local detectedUnivId = nil
+local afgEmptyL = lbl({Size=UDim2.new(1,0,0,40), Text="No results yet. Press Search Now to find games.",
+    TextColor3=C.textDim, TextSize=11, TextXAlignment=Enum.TextXAlignment.Center}, AFGScroll)
 
-local function fgLog(text, col)
-    local entry = make("Frame", {Size=UDim2.new(1,0,0,20), BackgroundTransparency=1}, fgLogScroll)
-    lbl({Size=UDim2.new(1,0,1,0), Text=text, TextColor3=col or C.textMuted, TextSize=10}, entry)
-    local n=0; for _,c in ipairs(fgLogScroll:GetChildren()) do if c:IsA("Frame") then n=n+1 end end
-    fgLogScroll.CanvasSize=UDim2.new(0,0,0,n*23); fgLogScroll.CanvasPosition=Vector2.new(0,9999)
+local function clearAFGResults()
+    for _, c in ipairs(AFGScroll:GetChildren()) do
+        if not c:IsA("UIListLayout") and c~=afgEmptyL then c:Destroy() end
+    end
+    afgEmptyL.Visible=true; AFGScroll.CanvasSize=UDim2.new(0,0,0,0)
 end
 
-local function fgDoScan()
-    -- Clear old log entries
-    for _, c in ipairs(fgLogScroll:GetChildren()) do
-        if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end
-    end
-    detectedUnivId = nil
-    fgUnivL.Text = "Scanning..."; fgSubL.Text = "Please wait"; fgApplyBtn.Visible = false
-    fgLog("Starting universe scan...", C.textMuted)
+local function addAFGResult(placeId, name, visits, players)
+    afgEmptyL.Visible=false
+    local row = make("Frame", {Size=UDim2.new(1,0,0,44), BackgroundColor3=C.bg, BorderSizePixel=0}, AFGScroll)
+    corner(row, 8); local rst=mkStroke(row, C.border, 1)
+
+    local iconBox = make("Frame", {Size=UDim2.new(0,28,0,28), Position=UDim2.new(0,6,0.5,-14), BackgroundColor3=C.tealDark, BorderSizePixel=0, ZIndex=2}, row)
+    corner(iconBox, 7)
+    lbl({Size=UDim2.new(1,0,1,0), Text="ID", TextSize=9, Font=Enum.Font.GothamBold, TextColor3=C.teal, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=3}, iconBox)
+
+    lbl({Size=UDim2.new(0.55,0,0,16), Position=UDim2.new(0,42,0,5),
+        Text=name, TextColor3=C.text, TextSize=11, Font=Enum.Font.GothamMedium, ZIndex=2,
+        TextTruncate=Enum.TextTruncate.AtEnd}, row)
+    lbl({Size=UDim2.new(0.55,0,0,13), Position=UDim2.new(0,42,0,23),
+        Text="Visits: "..tostring(visits).."  Players: "..tostring(players),
+        TextColor3=C.textDim, TextSize=10, ZIndex=2}, row)
+    lbl({Size=UDim2.new(0.38,0,0,16), Position=UDim2.new(0.58,0,0,5),
+        Text=tostring(placeId), TextColor3=C.purpleLight, TextSize=10,
+        Font=Enum.Font.GothamMedium, ZIndex=2, TextXAlignment=Enum.TextXAlignment.Right}, row)
+
+    local copyBadge = make("Frame", {Size=UDim2.new(0,62,0,20), Position=UDim2.new(1,-68,0,24),
+        BackgroundColor3=C.purpleDark, BorderSizePixel=0, Visible=false, ZIndex=4}, row)
+    corner(copyBadge, 5)
+    lbl({Size=UDim2.new(1,0,1,0), Text="Copied!", TextColor3=C.purpleLight,
+        TextSize=9, Font=Enum.Font.GothamBold, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=5}, copyBadge)
+
+    local btn = make("TextButton", {Size=UDim2.new(1,0,1,0), BackgroundTransparency=1, Text="", ZIndex=6}, row)
+    btn.MouseEnter:Connect(function() tween(row,{BackgroundColor3=C.cardHover},0.12); tween(rst,{Color=C.teal},0.12) end)
+    btn.MouseLeave:Connect(function() tween(row,{BackgroundColor3=C.bg},0.12);       tween(rst,{Color=C.border},0.12) end)
+    btn.MouseButton1Click:Connect(function()
+        pcall(setclipboard, tostring(placeId))
+        copyBadge.Visible=true; task.delay(2, function() if copyBadge then copyBadge.Visible=false end end)
+    end)
+
+    local n=0; for _,c in ipairs(AFGScroll:GetChildren()) do if c:IsA("Frame") then n=n+1 end end
+    AFGScroll.CanvasSize=UDim2.new(0,0,0,n*49)
+end
+
+local afgActive = false
+local function doAFGSearch()
+    if afgActive then return end
+    afgActive=true; afgBtn.Text="Searching..."
+    tween(afgBtn,{BackgroundColor3=C.purpleDark},0.15)
+    afgStatusL.Text="Probing Roblox universe IDs..."; afgStatusL.TextColor3=C.textDim
+    clearAFGResults()
 
     task.spawn(function()
-        -- Method 1: MarketplaceService GameProductInfo (placeId → universeId via API)
-        local placeId = game.PlaceId
-        fgLog("Place ID: "..tostring(placeId), C.textMuted)
-        if placeId and placeId ~= 0 then
-            local univId
-            pcall(function()
-                -- Try to read from game object directly
-                univId = game.GameId
-            end)
-            if univId and univId ~= 0 then
-                detectedUnivId = tostring(univId)
-                fgLog("✓ Found via game.GameId: "..detectedUnivId, C.green)
-            end
-        end
+        -- Probe random recent universe IDs (most are ~5–7.5B range for new games)
+        local found, target, rounds, maxRounds = {}, 10, 0, 20
+        local LOW, HIGH = 6000000000, 7500000000
 
-        -- Method 2: Scan RS for universe/game identifiers
-        if not detectedUnivId then
-            pcall(function()
-                local rs = game:GetService("ReplicatedStorage")
-                for _, d in ipairs(rs:GetDescendants()) do
-                    if d:IsA("IntValue") or d:IsA("StringValue") or d:IsA("NumberValue") then
-                        local v = tonumber(d.Value)
-                        if v and v > 1000000000 and d.Name:lower():find("universe") then
-                            detectedUnivId = tostring(v)
-                            fgLog("✓ Found in RS ("..d.Name.."): "..detectedUnivId, C.green)
-                            break
+        while #found<target and rounds<maxRounds do
+            rounds=rounds+1
+            afgStatusL.Text="Scanning... "..#found.."/"..target.." (batch "..rounds..")"
+
+            local ids = {}
+            for _ = 1, 50 do
+                table.insert(ids, tostring(math.floor(LOW + math.random()*(HIGH-LOW))))
+            end
+
+            local url = "https://games.roblox.com/v1/games?universeIds="..table.concat(ids,",")
+            local ok, res = pcall(httpRequest, {Url=url, Method="GET", Headers={}})
+
+            if ok and res and res.StatusCode==200 then
+                local dok, data = pcall(Svc.Http.JSONDecode, Svc.Http, res.Body)
+                if dok and data and data.data then
+                    for _, game in ipairs(data.data) do
+                        local v = game.visits  or 1
+                        local p = game.playing or 1
+                        if v==0 and p==0 then
+                            local dup=false
+                            for _, f in ipairs(found) do
+                                if f.placeId==(game.rootPlaceId or game.id) then dup=true; break end
+                            end
+                            if not dup then
+                                table.insert(found, {placeId=game.rootPlaceId or game.id, name=game.name or "Unnamed"})
+                                addAFGResult(game.rootPlaceId or game.id, game.name or "Unnamed", v, p)
+                                afgStatusL.Text="Found "..#found.."/"..target.." so far..."
+                                afgStatusL.TextColor3=C.teal
+                            end
                         end
                     end
                 end
-            end)
-        end
-
-        -- Method 3: Check HTTP for universe ID from place
-        if not detectedUnivId and httpRequest then
-            local univUrl = "https://apis.roblox.com/universes/v1/places/"..tostring(placeId).."/universe"
-            fgLog("Querying Roblox API for place→universe...", C.textMuted)
-            local ok2, res2 = pcall(httpRequest, {Url=univUrl, Method="GET"})
-            if ok2 and res2 and res2.StatusCode == 200 then
-                local dk, data2 = pcall(Svc.Http.JSONDecode, Svc.Http, res2.Body)
-                if dk and data2 and data2.universeId then
-                    detectedUnivId = tostring(data2.universeId)
-                    fgLog("✓ Found via Roblox API: "..detectedUnivId, C.green)
-                else
-                    fgLog("API returned no universeId.", C.textMuted)
-                end
-            else
-                fgLog("API request failed or unavailable.", C.textMuted)
             end
+            task.wait(0.25)
         end
 
-        -- Method 4: Check GP Creator knit services for any stored ID
-        if not detectedUnivId then
-            pcall(function()
-                local gpSvc = game:GetService("ReplicatedStorage")
-                for _, d in ipairs(gpSvc:GetDescendants()) do
-                    if (d:IsA("IntValue") or d:IsA("StringValue")) and tonumber(d.Value) and tonumber(d.Value) > 1000000000 then
-                        detectedUnivId = tostring(math.floor(tonumber(d.Value)))
-                        fgLog("✓ Found in RS value ("..d.Name.."): "..detectedUnivId, C.green)
-                        break
-                    end
-                end
-            end)
-        end
-
-        if detectedUnivId then
-            fgUnivL.Text = detectedUnivId
-            fgSubL.Text  = "Universe ID detected ✓"
-            fgSubL.TextColor3 = C.green
-            fgApplyBtn.Visible = true
-            fgLog("Scan complete. ID ready to apply.", C.teal)
+        if #found==0 then
+            afgStatusL.Text="Nothing found — try again."; afgStatusL.TextColor3=C.red
         else
-            fgUnivL.Text = "Not Found"
-            fgSubL.Text  = "Could not detect universe ID"
-            fgSubL.TextColor3 = C.red
-            fgLog("No universe ID found. Try entering it manually in Config.", C.red)
+            afgStatusL.Text="Done! Found "..#found.." game(s) with 0 players & 0 visits."; afgStatusL.TextColor3=C.green
         end
+        afgActive=false; afgBtn.Text="Search Now"; tween(afgBtn,{BackgroundColor3=C.tealStroke},0.15)
     end)
 end
 
-fgScanBtn.MouseButton1Click:Connect(fgDoScan)
-
-fgApplyBtn.MouseButton1Click:Connect(function()
-    if not detectedUnivId then return end
-    Config.universeId = detectedUnivId
-    saveConfig()
-    fgLog("✓ Applied "..detectedUnivId.." to Config!", C.green)
-    tween(fgApplyBtn, {BackgroundColor3=C.green, TextColor3=C.bg}, 0.15)
-    task.delay(1.5, function()
-        tween(fgApplyBtn, {BackgroundColor3=C.tealDark, TextColor3=C.teal}, 0.3)
-    end)
-end)
+afgBtn.MouseButton1Click:Connect(doAFGSearch)
 
 -- ═══════════════════════════════════════════════════════════════════
 -- PAGE: CONFIG
