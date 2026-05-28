@@ -458,9 +458,10 @@ sideSection("TRADING");   sideNav("📈","Seller",       "seller",     false)
                           sideNav("🚀","Pumper",        "buyer",      false)
                           sideNav("⚡","Dual Pump",     "multi",      false)
                           sideNav("💰","Robux",          "robux",      false)
-sideSection("GP TOOLS");  sideNav("🔨","GP Creator",   "gp_create",  false)
-                          sideNav("📥","Auto Collect",  "gp_collect", false)
-sideSection("SETTINGS");  sideNav("⚙️","Config",        "config",     false)
+sideSection("GP TOOLS");  sideNav("🔨","GP Creator",    "gp_create",  false)
+                          sideNav("📥","Auto Collect",   "gp_collect", false)
+                          sideNav("🔍","Auto Find Game", "gp_findgame",false)
+sideSection("SETTINGS");  sideNav("⚙️","Config",         "config",     false)
 
 -- Avatar row
 local avRow = make("Frame", {Size=UDim2.new(1,0,0,52), Position=UDim2.new(0,0,1,-52), BackgroundColor3=C.sidebar, BorderSizePixel=0, ZIndex=3}, sidebar)
@@ -1126,9 +1127,23 @@ adBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Full getStocksRF: tries direct path, then knit folder scan, then full descendant scan
 local function getStocksRF()
     local stocksRF
     pcall(function() stocksRF=game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.Stocks.RF end)
+    if stocksRF then return stocksRF end
+    pcall(function()
+        local indexFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Packages") and game:GetService("ReplicatedStorage").Packages:FindFirstChild("_Index")
+        if indexFolder then
+            for _, child in ipairs(indexFolder:GetChildren()) do
+                if child.Name:lower():find("sleitnick_knit") then
+                    local stocks = child:FindFirstChild("Stocks", true)
+                    local rf = stocks and stocks:FindFirstChild("RF")
+                    if rf then stocksRF=rf; break end
+                end
+            end
+        end
+    end)
     if stocksRF then return stocksRF end
     pcall(function()
         for _, d in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
@@ -1136,6 +1151,53 @@ local function getStocksRF()
         end
     end)
     return stocksRF
+end
+
+-- Discovers stock IDs from RF remotes, PlayerGui text, and RS value objects
+local function findStockIds(stocksRF)
+    local ids = {}
+    -- From known trading state
+    if seller.stockId and seller.stockId~=0 then ids[seller.stockId]=true end
+    if buyer.stockId   then ids[buyer.stockId]=true end
+    if mSlot[1].stockId then ids[mSlot[1].stockId]=true end
+    if mSlot[2].stockId then ids[mSlot[2].stockId]=true end
+    -- From RF remotes
+    if stocksRF then
+        for _, rfName in ipairs({"GetStocks","GetPortfolio","GetPlayerStocks"}) do
+            local rf = stocksRF:FindFirstChild(rfName)
+            if rf and rf:IsA("RemoteFunction") then
+                pcall(function()
+                    local data = rf:InvokeServer()
+                    if typeof(data)=="table" then
+                        for k, v in pairs(data) do
+                            if tonumber(k) then ids[tonumber(k)]=true end
+                            if typeof(v)=="table" then
+                                for _, field in ipairs({"Id","id","StockId","stockId"}) do
+                                    if v[field] then ids[tonumber(v[field])]=true end
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+    end
+    -- From PlayerGui text labels
+    pcall(function()
+        for _, child in ipairs(player:WaitForChild("PlayerGui"):GetDescendants()) do
+            if child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("TextBox") then
+                local num = tonumber(child.Text:match("%d+"))
+                if num and num>1000000 then ids[num]=true end
+            end
+            for _, v in pairs(child:GetAttributes()) do
+                local num = tonumber(v)
+                if num and num>1000000 then ids[num]=true end
+            end
+        end
+    end)
+    local list = {}
+    for id in pairs(ids) do table.insert(list, id) end
+    return list
 end
 
 local acLogCard = make("Frame", {Size=UDim2.new(1,0,0,180), BackgroundColor3=C.card, BorderSizePixel=0}, gpCollectPage)
@@ -1156,35 +1218,221 @@ local function acLog(text, col)
 end
 
 task.spawn(function()
+    local claimInProgress = false
     while screenGui.Parent do
         task.wait(3)
         if autoCollectDividends then
             local stocksRF = getStocksRF()
             if stocksRF then
-                local claimed = false
-                local claimAllRF = stocksRF:FindFirstChild("ClaimAllDividends")
-                if claimAllRF and claimAllRF:IsA("RemoteFunction") then
-                    local ok = pcall(function() return claimAllRF:InvokeServer() end)
-                    if ok then claimed=true; adStatusL.TextColor3=C.green; adStatusL.Text="Claimed all dividends!"; acLog("✓ ClaimAllDividends — success", C.green) end
+                if not claimInProgress then
+                    claimInProgress = true
+                    task.spawn(function()
+                        local stockIds = findStockIds(stocksRF)
+                        local successCount, totalCalls, errors = 0, 0, {}
+
+                        -- Try ClaimAllDividends first
+                        local claimAllRF = stocksRF:FindFirstChild("ClaimAllDividends")
+                        if claimAllRF and claimAllRF:IsA("RemoteFunction") then
+                            totalCalls=totalCalls+1
+                            local ok, err = pcall(function() return claimAllRF:InvokeServer() end)
+                            if ok then
+                                successCount=successCount+1
+                                adStatusL.TextColor3=C.green; adStatusL.Text="Claimed all dividends!"
+                                acLog("✓ ClaimAllDividends — success", C.green)
+                            else
+                                table.insert(errors, "ClaimAll: "..tostring(err))
+                            end
+                        end
+
+                        -- Try ClaimDividend per stock ID
+                        local claimRF = stocksRF:FindFirstChild("ClaimDividend") or stocksRF:FindFirstChild("ClaimDividends")
+                        if claimRF and claimRF:IsA("RemoteFunction") then
+                            for _, id in ipairs(stockIds) do
+                                totalCalls=totalCalls+1
+                                local ok2, err2 = pcall(function() return claimRF:InvokeServer(id) end)
+                                if ok2 then
+                                    successCount=successCount+1
+                                    acLog("✓ ClaimDividend ID "..tostring(id), C.green)
+                                else
+                                    table.insert(errors, "ID "..tostring(id)..": "..tostring(err2))
+                                end
+                            end
+                        end
+
+                        if totalCalls==0 then
+                            adStatusL.Text="No claim remotes found."; adStatusL.TextColor3=C.red
+                        elseif successCount>0 then
+                            adStatusL.Text="Successfully claimed payout!"; adStatusL.TextColor3=C.green
+                            task.delay(2, function()
+                                if autoCollectDividends and adStatusL.Text=="Successfully claimed payout!" then
+                                    adStatusL.Text="Auto collect running..."; adStatusL.TextColor3=C.green
+                                end
+                            end)
+                        else
+                            adStatusL.Text="Failed: "..(errors[1] or "unknown"); adStatusL.TextColor3=C.red
+                        end
+
+                        claimInProgress = false
+                    end)
                 end
-                local claimRF = stocksRF:FindFirstChild("ClaimDividends")
-                if claimRF and claimRF:IsA("RemoteFunction") then
-                    local idsToTry = {}
-                    if seller.stockId and seller.stockId~=0 then idsToTry[seller.stockId]=true end
-                    if buyer.stockId   then idsToTry[buyer.stockId]=true end
-                    if mSlot[1].stockId then idsToTry[mSlot[1].stockId]=true end
-                    if mSlot[2].stockId then idsToTry[mSlot[2].stockId]=true end
-                    for id in pairs(idsToTry) do
-                        local ok2 = pcall(function() return claimRF:InvokeServer(id) end)
-                        if ok2 then claimed=true; acLog("✓ ClaimDividends ID "..tostring(id), C.green) end
-                    end
-                end
-                if not claimed then adStatusL.TextColor3=C.textMuted; adStatusL.Text="No dividends found or already claimed." end
             else
                 adStatusL.TextColor3=C.red; adStatusL.Text="Stocks RF not found!"
             end
         end
     end
+end)
+
+-- ═══════════════════════════════════════════════════════════════════
+-- PAGE: AUTO FIND GAME
+-- ═══════════════════════════════════════════════════════════════════
+local gpFindPage = make("Frame", {Size=UDim2.new(1,0,0,0), BackgroundTransparency=1, Visible=false, AutomaticSize=Enum.AutomaticSize.Y}, mainArea)
+pages["gp_findgame"] = gpFindPage; vlist(gpFindPage, 14); pad(gpFindPage, 14, 16, 14, 16)
+
+local fgHdr = make("Frame", {Size=UDim2.new(1,0,0,52), BackgroundTransparency=1}, gpFindPage)
+lbl({Size=UDim2.new(1,0,0,26), Text="Auto Find Game", TextColor3=C.text, TextSize=18, Font=Enum.Font.GothamBold}, fgHdr)
+lbl({Size=UDim2.new(1,0,0,16), Position=UDim2.new(0,0,0,30), Text="Detect your active universe ID by scanning the game environment.", TextColor3=C.textDim, TextSize=12}, fgHdr)
+
+local fgCard = make("Frame", {Size=UDim2.new(1,0,0,160), BackgroundColor3=C.card, BorderSizePixel=0}, gpFindPage)
+corner(fgCard, 11); mkStroke(fgCard, C.border, 1)
+lbl({Size=UDim2.new(1,-28,0,13), Position=UDim2.new(0,14,0,14), Text="DETECTED UNIVERSE", TextColor3=C.textDim, TextSize=9, Font=Enum.Font.GothamBold}, fgCard)
+
+local fgUnivL = lbl({Size=UDim2.new(1,-28,0,28), Position=UDim2.new(0,14,0,30),
+    Text="—", TextColor3=C.text, TextSize=20, Font=Enum.Font.GothamBold}, fgCard)
+local fgSubL  = lbl({Size=UDim2.new(1,-28,0,14), Position=UDim2.new(0,14,0,60),
+    Text="Not detected yet", TextColor3=C.textDim, TextSize=11}, fgCard)
+
+local fgScanBtn = make("TextButton", {Size=UDim2.new(1,-28,0,40), Position=UDim2.new(0,14,0,82),
+    BackgroundColor3=C.purpleDark, TextColor3=C.purpleLight, Text="🔍  Scan Now",
+    TextSize=13, Font=Enum.Font.GothamBold, BorderSizePixel=0, ZIndex=2}, fgCard)
+corner(fgScanBtn, 9); mkStroke(fgScanBtn, C.purple, 1)
+fgScanBtn.MouseEnter:Connect(function() tween(fgScanBtn,{BackgroundColor3=C.purple},0.14) end)
+fgScanBtn.MouseLeave:Connect(function() tween(fgScanBtn,{BackgroundColor3=C.purpleDark},0.14) end)
+
+local fgApplyBtn = make("TextButton", {Size=UDim2.new(1,-28,0,28), Position=UDim2.new(0,14,0,130),
+    BackgroundColor3=C.tealDark, TextColor3=C.teal, Text="Apply to Config",
+    TextSize=11, Font=Enum.Font.GothamBold, BorderSizePixel=0, ZIndex=2, Visible=false}, fgCard)
+corner(fgApplyBtn, 7); mkStroke(fgApplyBtn, C.tealStroke, 1)
+fgApplyBtn.MouseEnter:Connect(function() tween(fgApplyBtn,{BackgroundColor3=Color3.fromRGB(13,60,55)},0.14) end)
+fgApplyBtn.MouseLeave:Connect(function() tween(fgApplyBtn,{BackgroundColor3=C.tealDark},0.14) end)
+
+local fgLogCard = make("Frame", {Size=UDim2.new(1,0,0,200), BackgroundColor3=C.card, BorderSizePixel=0}, gpFindPage)
+corner(fgLogCard, 11); mkStroke(fgLogCard, C.border, 1)
+lbl({Size=UDim2.new(1,-28,0,13), Position=UDim2.new(0,14,0,14), Text="SCAN LOG", TextColor3=C.textDim, TextSize=9, Font=Enum.Font.GothamBold}, fgLogCard)
+local fgLogScroll = make("ScrollingFrame", {Size=UDim2.new(1,-24,1,-36), Position=UDim2.new(0,12,0,34),
+    BackgroundTransparency=1, ScrollBarThickness=2, ScrollBarImageColor3=Color3.fromRGB(55,55,80),
+    CanvasSize=UDim2.new(0,0,0,0), BorderSizePixel=0}, fgLogCard)
+vlist(fgLogScroll, 3)
+lbl({Size=UDim2.new(1,0,0,36), Text="Press Scan Now to begin.", TextColor3=C.textDim, TextSize=11, TextXAlignment=Enum.TextXAlignment.Center}, fgLogScroll)
+
+local detectedUnivId = nil
+
+local function fgLog(text, col)
+    local entry = make("Frame", {Size=UDim2.new(1,0,0,20), BackgroundTransparency=1}, fgLogScroll)
+    lbl({Size=UDim2.new(1,0,1,0), Text=text, TextColor3=col or C.textMuted, TextSize=10}, entry)
+    local n=0; for _,c in ipairs(fgLogScroll:GetChildren()) do if c:IsA("Frame") then n=n+1 end end
+    fgLogScroll.CanvasSize=UDim2.new(0,0,0,n*23); fgLogScroll.CanvasPosition=Vector2.new(0,9999)
+end
+
+local function fgDoScan()
+    -- Clear old log entries
+    for _, c in ipairs(fgLogScroll:GetChildren()) do
+        if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end
+    end
+    detectedUnivId = nil
+    fgUnivL.Text = "Scanning..."; fgSubL.Text = "Please wait"; fgApplyBtn.Visible = false
+    fgLog("Starting universe scan...", C.textMuted)
+
+    task.spawn(function()
+        -- Method 1: MarketplaceService GameProductInfo (placeId → universeId via API)
+        local placeId = game.PlaceId
+        fgLog("Place ID: "..tostring(placeId), C.textMuted)
+        if placeId and placeId ~= 0 then
+            local univId
+            pcall(function()
+                -- Try to read from game object directly
+                univId = game.GameId
+            end)
+            if univId and univId ~= 0 then
+                detectedUnivId = tostring(univId)
+                fgLog("✓ Found via game.GameId: "..detectedUnivId, C.green)
+            end
+        end
+
+        -- Method 2: Scan RS for universe/game identifiers
+        if not detectedUnivId then
+            pcall(function()
+                local rs = game:GetService("ReplicatedStorage")
+                for _, d in ipairs(rs:GetDescendants()) do
+                    if d:IsA("IntValue") or d:IsA("StringValue") or d:IsA("NumberValue") then
+                        local v = tonumber(d.Value)
+                        if v and v > 1000000000 and d.Name:lower():find("universe") then
+                            detectedUnivId = tostring(v)
+                            fgLog("✓ Found in RS ("..d.Name.."): "..detectedUnivId, C.green)
+                            break
+                        end
+                    end
+                end
+            end)
+        end
+
+        -- Method 3: Check HTTP for universe ID from place
+        if not detectedUnivId and httpRequest then
+            local univUrl = "https://apis.roblox.com/universes/v1/places/"..tostring(placeId).."/universe"
+            fgLog("Querying Roblox API for place→universe...", C.textMuted)
+            local ok2, res2 = pcall(httpRequest, {Url=univUrl, Method="GET"})
+            if ok2 and res2 and res2.StatusCode == 200 then
+                local dk, data2 = pcall(Svc.Http.JSONDecode, Svc.Http, res2.Body)
+                if dk and data2 and data2.universeId then
+                    detectedUnivId = tostring(data2.universeId)
+                    fgLog("✓ Found via Roblox API: "..detectedUnivId, C.green)
+                else
+                    fgLog("API returned no universeId.", C.textMuted)
+                end
+            else
+                fgLog("API request failed or unavailable.", C.textMuted)
+            end
+        end
+
+        -- Method 4: Check GP Creator knit services for any stored ID
+        if not detectedUnivId then
+            pcall(function()
+                local gpSvc = game:GetService("ReplicatedStorage")
+                for _, d in ipairs(gpSvc:GetDescendants()) do
+                    if (d:IsA("IntValue") or d:IsA("StringValue")) and tonumber(d.Value) and tonumber(d.Value) > 1000000000 then
+                        detectedUnivId = tostring(math.floor(tonumber(d.Value)))
+                        fgLog("✓ Found in RS value ("..d.Name.."): "..detectedUnivId, C.green)
+                        break
+                    end
+                end
+            end)
+        end
+
+        if detectedUnivId then
+            fgUnivL.Text = detectedUnivId
+            fgSubL.Text  = "Universe ID detected ✓"
+            fgSubL.TextColor3 = C.green
+            fgApplyBtn.Visible = true
+            fgLog("Scan complete. ID ready to apply.", C.teal)
+        else
+            fgUnivL.Text = "Not Found"
+            fgSubL.Text  = "Could not detect universe ID"
+            fgSubL.TextColor3 = C.red
+            fgLog("No universe ID found. Try entering it manually in Config.", C.red)
+        end
+    end)
+end
+
+fgScanBtn.MouseButton1Click:Connect(fgDoScan)
+
+fgApplyBtn.MouseButton1Click:Connect(function()
+    if not detectedUnivId then return end
+    Config.universeId = detectedUnivId
+    saveConfig()
+    fgLog("✓ Applied "..detectedUnivId.." to Config!", C.green)
+    tween(fgApplyBtn, {BackgroundColor3=C.green, TextColor3=C.bg}, 0.15)
+    task.delay(1.5, function()
+        tween(fgApplyBtn, {BackgroundColor3=C.tealDark, TextColor3=C.teal}, 0.3)
+    end)
 end)
 
 -- ═══════════════════════════════════════════════════════════════════
